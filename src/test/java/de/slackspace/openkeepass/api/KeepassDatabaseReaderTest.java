@@ -1,22 +1,5 @@
 package de.slackspace.openkeepass.api;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import de.slackspace.openkeepass.KeePassDatabase;
 import de.slackspace.openkeepass.domain.Attachment;
 import de.slackspace.openkeepass.domain.CompressionAlgorithm;
@@ -30,12 +13,26 @@ import de.slackspace.openkeepass.exception.KeePassDatabaseUnreadableException;
 import de.slackspace.openkeepass.util.ByteUtils;
 import de.slackspace.openkeepass.util.ResourceUtils;
 import de.slackspace.openkeepass.util.StreamUtils;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.io.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
+
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
 
 public class KeepassDatabaseReaderTest {
 
+    private static final String AES_RIJANDAEL_ENCRYPTION_WITH_AES_KDF_KEY_DERIVATION = "testDatabase.kdbx";
+    private static final String CHACHA_20_ENCRYPTION_WITH_ARGON_2_KEY_DERIVATION = "DatabaseWithChaCha20AndArgon2.kdbx";
+    private static final String AES_RIJANDAEL_ENCRYPTION_WITH_ARGON_2_KEY_DERIVATION = "DatabaseWithArgon2.kdbx";
+
     @Test
     public void whenGettingEntriesByTitleShouldReturnMatchingEntries() throws FileNotFoundException {
-        FileInputStream file = new FileInputStream(ResourceUtils.getResource("testDatabase.kdbx"));
+        FileInputStream file = new FileInputStream(ResourceUtils.getResource(AES_RIJANDAEL_ENCRYPTION_WITH_AES_KDF_KEY_DERIVATION));
 
         KeePassDatabase reader = KeePassDatabase.getInstance(file);
         KeePassFile database = reader.openDatabase("abcdefg");
@@ -57,7 +54,7 @@ public class KeepassDatabaseReaderTest {
 
     @Test
     public void whenGettingEntriesByTitleButNothingMatchesShouldReturnNull() throws FileNotFoundException {
-        FileInputStream file = new FileInputStream(ResourceUtils.getResource("testDatabase.kdbx"));
+        FileInputStream file = new FileInputStream(ResourceUtils.getResource(AES_RIJANDAEL_ENCRYPTION_WITH_AES_KDF_KEY_DERIVATION));
 
         KeePassDatabase reader = KeePassDatabase.getInstance(file);
         KeePassFile database = reader.openDatabase("abcdefg");
@@ -68,7 +65,7 @@ public class KeepassDatabaseReaderTest {
 
     @Test
     public void whenKeePassFileIsV2ShouldReadHeader() throws IOException {
-        FileInputStream file = new FileInputStream(ResourceUtils.getResource("testDatabase.kdbx"));
+        FileInputStream file = new FileInputStream(ResourceUtils.getResource(AES_RIJANDAEL_ENCRYPTION_WITH_AES_KDF_KEY_DERIVATION));
 
         KeePassDatabase reader = KeePassDatabase.getInstance(file);
         KeePassHeader header = reader.getHeader();
@@ -104,14 +101,26 @@ public class KeepassDatabaseReaderTest {
     }
 
     @Test
-    public void whenPasswordIsValidShouldOpenKeepassFile() throws FileNotFoundException {
-        FileInputStream file = new FileInputStream(ResourceUtils.getResource("testDatabase.kdbx"));
+    public void whenChaCha20WithArgon2ShouldHeaderContainsCsrAlgorithm() throws FileNotFoundException {
+        FileInputStream file = new FileInputStream(ResourceUtils.getResource(CHACHA_20_ENCRYPTION_WITH_ARGON_2_KEY_DERIVATION));
         KeePassDatabase reader = KeePassDatabase.getInstance(file);
 
-        KeePassFile database = reader.openDatabase("abcdefg");
-        Assert.assertNotNull(database);
+        Assert.assertNotNull(reader.getHeader().getCrsAlgorithm());
+    }
 
-        Assert.assertEquals("TestDatabase", database.getMeta().getDatabaseName());
+    @Test
+    public void whenPasswordIsValidShouldOpenKeepassFile() throws FileNotFoundException {
+        whenPasswordIsValidShouldOpenKeepassFile(AES_RIJANDAEL_ENCRYPTION_WITH_AES_KDF_KEY_DERIVATION);
+    }
+
+    @Test
+    public void whenKeyDerivationIsArgon2ShouldOpenKeepassFile() throws FileNotFoundException {
+        whenPasswordIsValidShouldOpenKeepassFile(AES_RIJANDAEL_ENCRYPTION_WITH_ARGON_2_KEY_DERIVATION);
+    }
+
+    @Test
+    public void whenChaCha20WithArgon2ShouldOpenKeepassFile() throws FileNotFoundException {
+        whenPasswordIsValidShouldOpenKeepassFile(CHACHA_20_ENCRYPTION_WITH_ARGON_2_KEY_DERIVATION);
     }
 
     @Test(expected = UnsupportedOperationException.class)
@@ -409,5 +418,16 @@ public class KeepassDatabaseReaderTest {
         Entry entry = database.getEntryByTitle("entry1");
         assertThat(entry.getUsername(), is("aga"));
         assertThat(entry.getPassword(), is("secret"));
+    }
+
+    private void whenPasswordIsValidShouldOpenKeepassFile(String keepassFileName) throws FileNotFoundException {
+        FileInputStream file = new FileInputStream(ResourceUtils.getResource(keepassFileName));
+        KeePassDatabase reader = KeePassDatabase.getInstance(file);
+
+        KeePassFile database = reader.openDatabase("abcdefg");
+        Assert.assertNotNull(database);
+
+        Assert.assertEquals("TestDatabase", database.getMeta().getDatabaseName());
+
     }
 }
